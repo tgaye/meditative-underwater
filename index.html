@@ -1,0 +1,370 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meditative Underwater</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.8.0/lib/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #001f3f;
+       
+  frameRate(60); }
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 31, 63, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            font-family: Arial, sans-serif;
+            z-index: 100;
+        }
+        button {
+            background: #0074D9;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+
+<base target="_self">
+
+
+    </head><body><div id="controls">
+        <h3>Underwater Controls</h3>
+        <button id="toggleLight">Toggle Day/Night</button>
+        <button id="addJellyfish">Add Jellyfish</button>
+        <button id="clearBubbles">Clear Bubbles</button>
+        <div class="slider-container">
+            <label for="jellyCount">Jellyfish Count</label>
+            <input type="range" id="jellyCount" min="1" max="20" value="5">
+        </div>
+        <div class="slider-container">
+            <label for="bubbleIntensity">Bubble Intensity</label>
+            <input type="range" id="bubbleIntensity" min="0" max="100" value="50">
+        </div>
+    </div>
+
+    <script>
+        const sketch = (p) => {
+            let jellyfish = [];
+            let bubbles = [];
+            let particles = [];
+            let isDay = true;
+            let bgGradient;
+            let lightY = 0;
+            let rippleEffect = null;
+            let bubbleSpawnRate = 0;
+            let jellyfishCount = 5;
+
+            p.preload = () => {
+                // Preload any assets here if needed
+            };
+
+            p.setup = () => {
+                let canvas = p.createCanvas(p.windowWidth, p.windowHeight);
+                canvas.mousePressed(createRipple);
+                p.colorMode(p.HSB, 360, 100, 100, 1);
+                createGradient();
+                initializeJellyfish();
+
+                // Setup controls
+                p.select('#toggleLight').mousePressed(toggleLighting);
+                p.select('#addJellyfish').mousePressed(addJellyfish);
+                p.select('#clearBubbles').mousePressed(clearBubbles);
+                p.select('#jellyCount').input(updateJellyfishCount);
+                p.select('#bubbleIntensity').input(updateBubbleIntensity);
+            };
+
+            function createGradient() {
+                bgGradient = p.drawingContext.createLinearGradient(0, 0, 0, p.height);
+                if (isDay) {
+                    bgGradient.addColorStop(0, p.color(200, 50, 30));
+                    bgGradient.addColorStop(1, p.color(220, 70, 50));
+                } else {
+                    bgGradient.addColorStop(0, p.color(240, 80, 10));
+                    bgGradient.addColorStop(1, p.color(260, 90, 20));
+                }
+            }
+
+            function initializeJellyfish() {
+                jellyfish = [];
+                for (let i = 0; i < jellyfishCount; i++) {
+                    jellyfish.push(new Jellyfish());
+                }
+            }
+
+            function addJellyfish() {
+                jellyfish.push(new Jellyfish());
+            }
+
+            function clearBubbles() {
+                bubbles = [];
+            }
+
+            function toggleLighting() {
+                isDay = !isDay;
+                createGradient();
+            }
+
+            function updateJellyfishCount() {
+                jellyfishCount = p.select('#jellyCount').value();
+                initializeJellyfish();
+            }
+
+            function updateBubbleIntensity() {
+                bubbleSpawnRate = p.select('#bubbleIntensity').value() / 10;
+            }
+
+            function createRipple() {
+                rippleEffect = {
+                    x: p.mouseX,
+                    y: p.mouseY,
+                    radius: 5,
+                    alpha: 1
+                };
+
+                // Create bubble particles at click location
+                for (let i = 0; i < 20; i++) {
+                    bubbles.push(new Bubble(p.mouseX, p.mouseY));
+                }
+            }
+
+            p.draw = () => {
+                // Draw background
+                p.drawingContext.fillStyle = bgGradient;
+                p.drawingContext.fillRect(0, 0, p.width, p.height);
+
+                // Draw light rays
+                drawLightRays();
+
+                // Update and display jellyfish
+                for (let j of jellyfish) {
+                    j.update();
+                    j.display();
+                }
+
+                // Update and display bubbles
+                for (let i = bubbles.length - 1; i >= 0; i--) {
+                    bubbles[i].update();
+                    bubbles[i].display();
+                    if (bubbles[i].isOffScreen()) {
+                        bubbles.splice(i, 1);
+                    }
+                }
+
+                // Random bubble generation
+                if (p.random(1) < bubbleSpawnRate / 100) {
+                    bubbles.push(new Bubble(p.random(p.width), p.height + 20));
+                }
+
+                // Draw ripple effect if active
+                if (rippleEffect) {
+                    drawRipple();
+                }
+
+                // Draw particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    particles[i].update();
+                    particles[i].display();
+                    if (particles[i].isDone()) {
+                        particles.splice(i, 1);
+                    }
+                }
+            };
+
+            function drawLightRays() {
+                p.push();
+                p.blendMode(p.ADD);
+                for (let i = 0; i < 5; i++) {
+                    let x = p.random(p.width);
+                    let w = p.random(50, 150);
+                    let alpha = p.random(0.01, 0.03);
+                    if (!isDay) alpha *= 0.3;
+                    
+                    p.fill(200, 30, 100, alpha);
+                    p.noStroke();
+                    p.beginShape();
+                    p.vertex(x, 0);
+                    p.vertex(x + w, 0);
+                    p.vertex(x + w/2, p.height);
+                    p.endShape(p.CLOSE);
+                }
+                p.pop();
+            }
+
+            function drawRipple() {
+                p.push();
+                p.noFill();
+                p.stroke(200, 50, 100, rippleEffect.alpha);
+                p.strokeWeight(2);
+                p.ellipse(rippleEffect.x, rippleEffect.y, rippleEffect.radius * 2);
+                rippleEffect.radius += 5;
+                rippleEffect.alpha -= 0.02;
+                
+                if (rippleEffect.alpha <= 0) {
+                    rippleEffect = null;
+                }
+                p.pop();
+            }
+
+            p.windowResized = () => {
+                p.resizeCanvas(p.windowWidth, p.windowHeight);
+                createGradient();
+            };
+
+            class Jellyfish {
+                constructor() {
+                    this.reset();
+                    this.tentacleCount = Math.floor(p.random(4, 8));
+                    this.tentacles = [];
+                    for (let i = 0; i < this.tentacleCount; i++) {
+                        this.tentacles.push({
+                            length: p.random(50, 100),
+                            segments: Math.floor(p.random(5, 10)),
+                            noiseOffset: p.random(1000)
+                        });
+                    }
+                    this.pulseSpeed = p.random(0.02, 0.05);
+                    this.pulsePhase = p.random(p.TWO_PI);
+                    this.hue = p.random(300, 360);
+                    this.saturation = p.random(50, 80);
+                    this.brightness = p.random(70, 90);
+                }
+
+                reset() {
+                    this.pos = p.createVector(p.random(p.width), p.random(p.height * 0.7));
+                    this.vel = p.createVector(p.random(-0.5, 0.5), p.random(-0.2, 0.2));
+                    this.size = p.random(30, 60);
+                    this.noiseOffsetX = p.random(1000);
+                    this.noiseOffsetY = p.random(1000);
+                }
+
+                update() {
+                    // Apply noise-based movement
+                    this.vel.x = p.map(p.noise(this.noiseOffsetX), 0, 1, -1, 1);
+                    this.vel.y = p.map(p.noise(this.noiseOffsetY), 0, 1, -0.5, 0.5);
+                    
+                    this.pos.add(this.vel);
+                    this.noiseOffsetX += 0.01;
+                    this.noiseOffsetY += 0.01;
+                    
+                    // Boundary checks
+                    if (this.pos.x < -this.size) this.pos.x = p.width + this.size;
+                    if (this.pos.x > p.width + this.size) this.pos.x = -this.size;
+                    if (this.pos.y < -this.size * 2) this.pos.y = p.height + this.size;
+                    if (this.pos.y > p.height + this.size) this.pos.y = -this.size * 2;
+                    
+                    // Update pulse animation
+                    this.pulsePhase += this.pulseSpeed;
+                }
+
+                display() {
+                    p.push();
+                    p.translate(this.pos.x, this.pos.y);
+                    
+                    // Draw bell (main body)
+                    let pulseSize = this.size * (0.9 + 0.1 * p.sin(this.pulsePhase));
+                    p.fill(this.hue, this.saturation, this.brightness, 0.7);
+                    p.noStroke();
+                    p.ellipse(0, 0, pulseSize, pulseSize * 0.8);
+                    
+                    // Draw glow
+                    p.blendMode(p.ADD);
+                    p.fill(this.hue, this.saturation * 0.7, 100, 0.1);
+                    p.ellipse(0, 0, pulseSize * 1.5, pulseSize * 1.3);
+                    p.blendMode(p.BLEND);
+                    
+                    // Draw tentacles
+                    for (let i = 0; i < this.tentacles.length; i++) {
+                        this.drawTentacle(this.tentacles[i]);
+                    }
+                    
+                    p.pop();
+                }
+
+                drawTentacle(t) {
+                    p.push();
+                    p.noFill();
+                    p.stroke(this.hue, this.saturation, this.brightness, 0.8);
+                    p.strokeWeight(2);
+                    
+                    p.beginShape();
+                    p.curveVertex(0, 0);
+                    p.curveVertex(0, 0);
+                    
+                    for (let j = 1; j <= t.segments; j++) {
+                        let segmentY = j * (t.length / t.segments);
+                        let noiseVal = p.noise(t.noiseOffset + j * 0.2 + p.frameCount * 0.02);
+                        let segmentX = p.map(noiseVal, 0, 1, -20, 20);
+                        p.curveVertex(segmentX, segmentY);
+                    }
+                    
+                    p.curveVertex(0, t.length);
+                    p.curveVertex(0, t.length);
+                    p.endShape();
+                    
+                    p.pop();
+                }
+            }
+
+            class Bubble {
+                constructor(x, y) {
+                    this.pos = p.createVector(x, y);
+                    this.vel = p.createVector(p.random(-0.5, 0.5), p.random(-3, -1));
+                    this.size = p.random(5, 15);
+                    this.life = p.random(100, 200);
+                    this.maxLife = this.life;
+                    this.hue = p.random(180, 220);
+                    this.saturation = p.random(30, 50);
+                }
+
+                update() {
+                    this.pos.add(this.vel);
+                    this.vel.x *= 0.99;
+                    this.life--;
+                    
+                    // Add slight wobble
+                    this.pos.x += p.sin(p.frameCount * 0.1 + this.pos.y * 0.01) * 0.3;
+                }
+
+                display() {
+                    let alpha = p.map(this.life, this.maxLife, 0, 1, 0);
+                    p.push();
+                    p.noStroke();
+                    p.fill(this.hue, this.saturation, 100, alpha * 0.8);
+                    p.ellipse(this.pos.x, this.pos.y, this.size);
+                    
+                    // Highlight
+                    p.fill(0, 0, 100, alpha * 0.5);
+                    p.ellipse(this.pos.x - this.size/4, this.pos.y - this.size/4, this.size/3);
+                    p.pop();
+                }
+
+                isOffScreen() {
+                    return this.pos.y < -this.size || this.life <= 0;
+                }
+            }
+        };
+
+        new p5(sketch);
+    </script>
+
+              
+          
+                
+          
+              
+</body></html>
